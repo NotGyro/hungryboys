@@ -9,6 +9,7 @@ from .camera import Camera
 from foodgame.util import Point
 from .event_log import EventLog
 from foodgame.biomes import BiomeTest
+from .input import InputManager
 
 
 ## The main game class.
@@ -36,6 +37,7 @@ class Game():
         self.fps = 0
         self.fps_time = 0
         self.game_time = 60*58
+        self.input = InputManager()
 
         AssetManager.load()
 
@@ -85,11 +87,19 @@ class Game():
                 if (event.key == pygame.K_UP or event.key == pygame.K_DOWN
                     or event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT):
                         self.player.move(event.key)
+                elif (event.key == pygame.K_F4):
+                    if alt_held:
+                        pygame.quit()
+                        sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 4:
                     self.camera.zoom = self.camera.zoom + 1
                 elif event.button == 5 and self.camera.zoom >= 3:
                     self.camera.zoom = self.camera.zoom - 1
+
+            # Run this regardless of other checks for event type for testing reasons     
+            if event.type == pygame.KEYDOWN or event.type == pygame.KEYUP:
+                self.input.handle_event(event)
 
 
     ## Updates things that need to change over time in the game.
