@@ -1,9 +1,17 @@
+import collections
 import pygame, sys
 from pygame.locals import *
+
+from ruamel.yaml import YAML
 
 # None of this code is particularly optimized yet - currently, it relies heavily on strings.
 # I can fix that later if we need to but input code usually isn't a bottleneck.
 
+# Order of intitialization is:
+# 1. Construct an InputManager.
+# 2. Construct your InputContexts and register with your InputManager.
+# 3. Register default keybinds
+# 4. Call InputManager.ld_config(yaml_file_string)
 
 # @todo TODO: Error handling for basically everything in here. 
 
@@ -13,8 +21,10 @@ class ActionState:
 
 ## An InputContext represents the different situations in which one can input. Examples: Game, menu, etc.
 # The InputContext translates keypresses into game actions - it makes keys remappable.
-# Keys are mapped to an "Action name," somewhat like a virtual keycode that refers to an action in gameplay.
-class InputContext:
+# Keys are mapped to an "Action code," a string somewhat like a virtual keycode that refers to an action in gameplay.
+# Keys can only be mapped to one action code, but the reverse is not true. 
+# Map as many keys to the same action as you want.
+class InputContext():
 
     ## Initializes an InputContext, passing the name as an argument.
     # Example: InputContext("Menu"), InputContext("Game"), InputContext("ChatBar").
@@ -23,8 +33,10 @@ class InputContext:
         self.name = n
 
         # Initialize a dictionary of mappings of keycode to action name
-        # This only has so much stuff in it for testing reasons, presently.
-        self.keymap = { "up" : "MoveUp", "right" : "MoveRight", "down" : "MoveDown", "left" : "MoveLeft" }
+        self.keymap = {}
+
+        # A list of all actions indexed by default key names. Used for creating the keybind config for the first time.
+        self.actions_defaults = { "up" : "MoveUp", "right" : "MoveRight", "down" : "MoveDown", "left" : "MoveLeft" }
 
         # Initialize a list of which action('s buttons) are held down at the moment.
         self.actions_down = []
@@ -37,7 +49,6 @@ class InputContext:
         # this is the "type in your name" state.
         self.passthrough = passkeys # Defaults to false.
 
-        # For use with passthrough. Are we currently typing capital letters?
         self.caps = False
 
     def handle_event(self, event):
@@ -49,6 +60,7 @@ class InputContext:
 
     ## Called by handle_event and by attach. The meat of the key handing functionality.
     def handle_keycode(self, key, down):
+        # Print debug stuff.
         if self.debug_input==True:
             if down == True:
                 state_print = "Down"
@@ -56,10 +68,32 @@ class InputContext:
                 state_print = "Up"
             print("Key pressed in InputContext: " + key)
             print("Key state is now: " + state_print)
+        # Do we have this registered to any action?
         if(key in self.keymap):
+            action = self.keymap[key]
             if self.debug_input==True:
-                print("Action code " + self.keymap[key] + " detected")
+                print("Action code " + action + " detected")
+            if( down ):
+                if not key in self.actions_down:
+                    # Start holding key.
+                    self.actions_down.append(action)
+            elif( up ):
+                if key in self.actions_down:
+                    # No longer holding key.
+                    self.actions_down.remove(action)
+        # If we don't have the key but we ARE set up for passthrough, this might be text input.
+        elif(self.passthrough):
+            # @todo TODO: Code for passing text along to other classes registered with this handler.
+            pass
 
+    ## Registers an action code, with its default key(s).
+    # Pass a list as a key to bind multiple keys to this action.
+    def register_action_defaults(self, act, keys):
+        # Make this a single-element list if it's not a list already.
+        if type(key) is not list: keys = [ keys ]
+        # Register our keybind defaults. 
+        for k in key:
+            self.actions_defaults[k] = act
 
     ## Called when this context becomes active.
     def attach(self, current_down=[]):
@@ -78,19 +112,24 @@ class InputContext:
 # This remaps key-presses into action codes.
 # Keys are mapped to an "Action name," somewhat like a virtual keycode that refers to an action in gameplay.
 class InputManager():
-    def __init__(self): 
+    def __init__(self, configver="0.01"): 
         # Input debug switch. Copies to contexts.
         self.debug_input = True
 
         # This variable represents our current context.
-        self.context = InputContext("default")
-        self.contexts = { "default" : self.context }
+        self.context = InputContext("Default")
+        self.contexts = { "Default" : self.context }
         # Make sure this propagates.
         self.context.debug_input = self.debug_input
 
         # A master list of which keys are held down presently.
         # This is kept separate from a context.actions_down, in order to avoid shenanigans.
         self.keys_down = []
+
+        # This is the current version of your keybindings. If the version in the file isn't
+        # the same as the version in the class, the file will be wiped and replaced with
+        # defaults. 
+        self.config_version = configver
 
     ## Handle an input-related pygame event.
     # InputManager's update function does not handle more complicated events such as "window closed."
@@ -119,6 +158,14 @@ class InputManager():
 
     def register_context(self, ctx):
         if not (ctx.name in self.contexts):
-            self.contexts[ctx.name] = ctx 
+            self.contexts[ctx.name] = ctx
 
+    ## Load mappings from a config string. This loads to ALL contexts.
+    # Contexts which are not registered with the InputManager are ignored
+    # @todo TODO: Log a warning if mappings are present for a context
+    # which is not loaded.
+    def ld_config(self, configstring):
+        yaml = YAML()
 
+    ## Called when 
+    def gen_config(self):
